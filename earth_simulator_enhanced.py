@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Earth Simulator Enhanced v2.0 (versão otimizada)
-Autor: Adrian Lesniak
-Opis: Zaawansowany symulator 3D Ziemi z interaktywnym interfejsem
-Funkcje: Rotacja globu, zmiana tekstur, menu interaktywne, system zapisu/odczytu
+Earth Simulator Enhanced v2.0 (optimized version)
+Author: Adrian Lesniak
+Description: Advanced interactive 3D Earth simulator
+Features: globe rotation, texture switching, interactive menu, save/load system
 """
 
-# Import naprawy kompatybilności na początku
+# Import compatibility fix at the start
 try:
     import compatibility_fix
 except ImportError:
-    print("Ostrzeżenie: Nie znaleziono pliku compatibility_fix.py")
+    print("Warning: compatibility_fix.py not found")
 
 import sys
 import os
@@ -24,7 +24,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-# Import Pygame i OpenGL po sprawdzeniu zależności
+# Import Pygame and OpenGL after dependency check
 import pygame
 from pygame.locals import DOUBLEBUF, OPENGL
 from OpenGL.GL import *
@@ -32,7 +32,7 @@ from OpenGL.GLU import *
 import numpy as np
 from PIL import Image
 
-# Konfiguracja logowania
+# Configuration logowania
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -45,14 +45,14 @@ logger = logging.getLogger(__name__)
 
 
 class TextureType(Enum):
-    """Enum dla typów tekstur"""
+    """Enum for texture types"""
     DEFAULT = "Default"
     POLITICAL = "Political"
     DETAILED = "Detailed"
 
 
 class ViewMode(Enum):
-    """Enum dla trybów widoku"""
+    """Enum for view modes"""
     NORMAL = "Normal"
     WIREFRAME = "Wireframe"
     POINTS = "Points"
@@ -60,7 +60,7 @@ class ViewMode(Enum):
 
 
 class AnimationType(Enum):
-    """Enum dla typów animacji"""
+    """Enum for animation types"""
     ROTATION = "Rotation"
     ORBIT = "Orbit"
     ZOOM = "Zoom"
@@ -69,7 +69,7 @@ class AnimationType(Enum):
 
 @dataclass
 class SimulationConfig:
-    """Klasa konfiguracji symulacji"""
+    """Simulation configuration class"""
     resolution: Tuple[int, int] = (1280, 720)
     fov: float = 45.0
     mouse_sensitivity: float = 0.2
@@ -79,8 +79,8 @@ class SimulationConfig:
 
 
 class ColorScheme:
-    """Schemat kolorów dla interfejsu"""
-    # Jasne kolory dla lepszej widoczności
+    """Color scheme for the UI"""
+    # Light colors for better visibility
     BACKGROUND = (240, 240, 245)
     MENU_BG = (255, 255, 255)
     MENU_HEADER = (100, 150, 255)
@@ -94,7 +94,7 @@ class ColorScheme:
     WARNING = (255, 200, 100)
     ERROR = (255, 100, 100)
     INFO = (100, 150, 255)
-    # Nowe kolory dla paska menu
+    # Colors for the top bar
     TOPBAR_BG = (70, 130, 180)
     TOPBAR_TEXT = (255, 255, 255)
     TOPBAR_BUTTON = (90, 150, 200)
@@ -102,7 +102,55 @@ class ColorScheme:
 
 
 class TopMenuBar:
-    """Pasek menu u góry z nowymi funkcjami"""
+    """Top bar with equal-width buttons that always fit the window."""
+
+    HEIGHT = 40
+    MARGIN = 10
+    GAP = 6
+    ITEMS = [
+        ("View", "view_mode"),
+        ("Animation", "animation"),
+        ("Stats", "stats"),
+        ("Effects", "effects"),
+        ("Atmosphere", "atmosphere"),
+        ("Screenshot", "screenshot"),
+        ("Sound", "sound"),
+        ("Settings", "settings"),
+        ("Help", "help"),
+        ("Exit", "exit"),
+    ]
+
+    def __init__(self, display_width: int):
+        self.display_width = display_width
+        self.font = pygame.font.Font(None, 24)
+        count = len(self.ITEMS)
+        width = (display_width - 2 * self.MARGIN - (count - 1) * self.GAP) // count
+        self.buttons = []
+        for i, (label, action) in enumerate(self.ITEMS):
+            x = self.MARGIN + i * (width + self.GAP)
+            self.buttons.append((pygame.Rect(x, 5, width, self.HEIGHT - 10), label, action))
+
+    def draw(self, surface, colors: ColorScheme, mouse_pos):
+        """Draws the top bar."""
+        pygame.draw.rect(surface, colors.TOPBAR_BG, (0, 0, self.display_width, self.HEIGHT))
+        pygame.draw.line(surface, colors.BUTTON_BORDER,
+                         (0, self.HEIGHT - 1), (self.display_width, self.HEIGHT - 1), 2)
+        for rect, label, _action in self.buttons:
+            hovered = rect.collidepoint(mouse_pos)
+            color = colors.TOPBAR_BUTTON_HOVER if hovered else colors.TOPBAR_BUTTON
+            pygame.draw.rect(surface, color, rect, border_radius=6)
+            pygame.draw.rect(surface, colors.TEXT_ACCENT, rect, 1, border_radius=6)
+            text = self.font.render(label, True, colors.TEXT_ACCENT)
+            surface.blit(text, text.get_rect(center=rect.center))
+
+    def handle_click(self, pos):
+        """Returns the action of the clicked button, or None."""
+        for rect, _label, action in self.buttons:
+            if rect.collidepoint(pos):
+                return action
+        return None
+
+
 
     def __init__(self, display_width: int):
         self.display_width = display_width
@@ -118,20 +166,20 @@ class TopMenuBar:
         x = 10
 
         self.buttons = [
-            {"text": "🌍 Widok", "action": "view_mode", "x": x},
-            {"text": "🎬 Animacja", "action": "animation", "x": x + (button_width + spacing) * 1},
-            {"text": "📊 Statystyki", "action": "stats", "x": x + (button_width + spacing) * 2},
-            {"text": "🎨 Efekty", "action": "effects", "x": x + (button_width + spacing) * 3},
-            {"text": "🌙 Atmosfera", "action": "atmosphere", "x": x + (button_width + spacing) * 4},
-            {"text": "📸 Screenshot", "action": "screenshot", "x": x + (button_width + spacing) * 5},
-            {"text": "🎵 Dźwięk", "action": "sound", "x": x + (button_width + spacing) * 6},
-            {"text": "⚙️ Ustawienia", "action": "settings", "x": x + (button_width + spacing) * 7},
-            {"text": "❓ Pomoc", "action": "help", "x": x + (button_width + spacing) * 8},
-            {"text": "❌ Wyjście", "action": "exit", "x": x + (button_width + spacing) * 9}
+            {"text": "View", "action": "view_mode", "x": x},
+            {"text": "Animation", "action": "animation", "x": x + (button_width + spacing) * 1},
+            {"text": "Stats", "action": "stats", "x": x + (button_width + spacing) * 2},
+            {"text": "Effects", "action": "effects", "x": x + (button_width + spacing) * 3},
+            {"text": "Atmosphere", "action": "atmosphere", "x": x + (button_width + spacing) * 4},
+            {"text": "Screenshot", "action": "screenshot", "x": x + (button_width + spacing) * 5},
+            {"text": "Sound", "action": "sound", "x": x + (button_width + spacing) * 6},
+            {"text": "Settings", "action": "settings", "x": x + (button_width + spacing) * 7},
+            {"text": "Help", "action": "help", "x": x + (button_width + spacing) * 8},
+            {"text": "Exit", "action": "exit", "x": x + (button_width + spacing) * 9}
         ]
 
     def draw(self, surface, colors: ColorScheme):
-        """Rysuje pasek menu u góry"""
+        """Draws the top bar"""
         topbar_rect = pygame.Rect(0, 0, self.display_width, self.height)
         pygame.draw.rect(surface, colors.TOPBAR_BG, topbar_rect)
 
@@ -152,7 +200,7 @@ class TopMenuBar:
             surface.blit(text_surface, text_rect)
 
     def handle_click(self, pos: Tuple[int, int]) -> Optional[str]:
-        """Obsługuje kliknięcia w pasek menu"""
+        """Handles clicks w pasek menu"""
         for button in self.buttons:
             button_rect = pygame.Rect(button["x"], 5, 120, 30)
             if button_rect.collidepoint(pos[0], pos[1]):
@@ -161,7 +209,7 @@ class TopMenuBar:
 
 
 class EnhancedButton:
-    """Ulepszona klasa przycisku com animações"""
+    """Button class with hover animation"""
 
     def __init__(self, x: int, y: int, width: int, height: int, text: str,
                  icon: Optional[str] = None, tooltip: Optional[str] = None):
@@ -235,7 +283,7 @@ class EnhancedButton:
 
 
 class DataManager:
-    """Menedżer danych - zapis/odczyt konfiguracji"""
+    """Data manager - save/load configuration"""
 
     def __init__(self, config_file: str = "simulator_config.json"):
         self.config_file = config_file
@@ -253,37 +301,37 @@ class DataManager:
         }
 
     def save_config(self, config: Dict) -> bool:
-        """Zapisuje konfigurację do pliku"""
+        """Saves the configuration to a file"""
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
-            logger.info(f"Konfiguracja zapisana do {self.config_file}")
+            logger.info(f"Configuration saved to {self.config_file}")
             return True
         except Exception as e:
-            logger.error(f"Błąd zapisu konfiguracji: {e}")
+            logger.error(f"Error saving configuration: {e}")
             return False
 
     def load_config(self) -> Dict:
-        """Wczytuje konfigurację z pliku"""
+        """Loads the configuration from a file"""
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                logger.info(f"Konfiguracja wczytana z {self.config_file}")
+                logger.info(f"Configuration loaded from {self.config_file}")
                 return config
             else:
-                logger.info("Brak pliku konfiguracyjnego, używam domyślnych ustawień")
+                logger.info("No config file found, using default settings")
                 return self.default_config.copy()
         except Exception as e:
-            logger.error(f"Błąd odczytu konfiguracji: {e}")
+            logger.error(f"Error reading configuration: {e}")
             return self.default_config.copy()
 
 
 class EnhancedEarthSimulator:
-    """Ulepszony symulator Ziemi z zaawansowanymi funkcjami"""
+    """Earth simulator with advanced features"""
 
     def __init__(self):
-        """Inicjalizacja symulatora"""
+        """Simulator initialization"""
         self.setup_pygame()
         self.setup_opengl()
         self.setup_variables()
@@ -295,10 +343,10 @@ class EnhancedEarthSimulator:
         self.data_manager = DataManager()
         self.load_saved_config()
 
-        logger.info("Symulator Ziemi zainicjalizowany pomyślnie")
+        logger.info("Earth simulator initialized successfully")
 
     def setup_pygame(self):
-        """Konfiguracja Pygame"""
+        """Pygame setup"""
         try:
             pygame.init()
             pygame.mixer.init()
@@ -315,11 +363,11 @@ class EnhancedEarthSimulator:
             self.screen = pygame.display.set_mode(self.display, DOUBLEBUF | OPENGL)
 
         except Exception as e:
-            logger.error(f"Błąd inicjalizacji Pygame: {e}")
+            logger.error(f"Pygame initialization error: {e}")
             raise
 
     def setup_opengl(self):
-        """Konfiguracja OpenGL"""
+        """OpenGL setup"""
         try:
             glEnable(GL_DEPTH_TEST)
             glEnable(GL_BLEND)
@@ -333,11 +381,11 @@ class EnhancedEarthSimulator:
             self.update_perspective()
 
         except Exception as e:
-            logger.error(f"Błąd konfiguracji OpenGL: {e}")
+            logger.error(f"OpenGL configuration error: {e}")
             raise
 
     def setup_variables(self):
-        """Inicjalizacja zmiennych symulacji"""
+        """Simulation variable initialization"""
         self.distance = -5
         self.rotation_x = 0
         self.rotation_y = 180
@@ -365,8 +413,8 @@ class EnhancedEarthSimulator:
 
         self.current_texture = 'Default'
         self.texture_files = {
-            'Default': 'earth_texture.jpg',
-            'Political': 'earth_political.jpg',
+            'Default': 'earth_texture.png',
+            'Political': 'earth_political.png',
             'Detailed': 'earth_detailed.jpg'
         }
         self.textures = {}
@@ -381,7 +429,7 @@ class EnhancedEarthSimulator:
         self.ui_dirty = True
 
     def setup_ui(self):
-        """Konfiguracja interfejsu użytkownika"""
+        """User interface setup"""
         self.title_font = pygame.font.Font(None, 48)
         self.menu_font = pygame.font.Font(None, 36)
         self.text_font = pygame.font.Font(None, 28)
@@ -391,93 +439,93 @@ class EnhancedEarthSimulator:
 
         self.buttons = {
             'main': [
-                EnhancedButton(20, 140, 360, 50, "ℹ️ O Programie",
-                               tooltip="Informacje o symulatorze"),
-                EnhancedButton(20, 200, 360, 50, "🎮 Instrukcje",
-                               tooltip="Jak korzystać z programu"),
-                EnhancedButton(20, 260, 360, 50, "⚙️ Ustawienia",
-                               tooltip="Konfiguracja symulatora"),
-                EnhancedButton(20, 320, 360, 50, "💾 Zapisz Stan",
-                               tooltip="Zapisz obecną pozycję"),
-                EnhancedButton(20, 380, 360, 50, "📂 Wczytaj Stan",
-                               tooltip="Wczytaj zapisaną pozycję"),
-                EnhancedButton(20, 440, 360, 50, "🔄 Reset Widoku",
-                               tooltip="Przywróć domyślny widok"),
-                EnhancedButton(20, 500, 360, 50, "❌ Wyjście",
-                               tooltip="Zamknij program")
+                EnhancedButton(20, 140, 360, 50, "About",
+                               tooltip="About the simulator"),
+                EnhancedButton(20, 200, 360, 50, "Instructions",
+                               tooltip="How to use the program"),
+                EnhancedButton(20, 260, 360, 50, "Settings",
+                               tooltip="Simulator configuration"),
+                EnhancedButton(20, 320, 360, 50, "Save State",
+                               tooltip="Save the current position"),
+                EnhancedButton(20, 380, 360, 50, "Load State",
+                               tooltip="Load the saved position"),
+                EnhancedButton(20, 440, 360, 50, "Reset View",
+                               tooltip="Restore the default view"),
+                EnhancedButton(20, 500, 360, 50, "Exit",
+                               tooltip="Close the program")
             ]
         }
 
-        self.menu_btn = EnhancedButton(self.display[0] - 120, 50, 100, 40, "📋 Menu",
-                                       tooltip="Otwórz menu główne")
-        self.layer_btn = EnhancedButton(self.display[0] - 240, 50, 100, 40, "🌍 Warstwa",
-                                        tooltip="Zmień teksturę Ziemi")
+        self.menu_btn = EnhancedButton(self.display[0] - 120, 50, 100, 40, "Menu",
+                                       tooltip="Open the main menu")
+        self.layer_btn = EnhancedButton(self.display[0] - 240, 50, 100, 40, "Layer",
+                                        tooltip="Change the Earth texture")
 
         self.menu_sections = {
-            'ℹ️ O Programie': [
-                "🌟 Earth Simulator Enhanced v2.0",
-                "👨‍💻 Autor: Adrian Lesniak",
-                "📅 Data: 2024",
+            'About': [
+                "Earth Simulator Enhanced v2.0",
+                "Author: Adrian Lesniak",
+                "Date: 2024",
                 "",
-                "✨ Funkcje:",
-                "• Interaktywna rotacja 3D",
-                "• Różne tekstury Ziemi",
-                "• System zapisu/odczytu",
-                "• Zaawansowany interfejs",
-                "• Animacje i efekty",
-                "• Pasek menu u góry",
-                "• 10 nowych funkcji"
+                "Features:",
+                "• Interactive 3D rotation",
+                "• Different Earth textures",
+                "• Save/load system",
+                "• Advanced interface",
+                "• Animations and effects",
+                "• Top menu bar",
+                "• 10 new features"
             ],
-            '🎮 Instrukcje': [
-                "🖱️ Sterowanie myszą:",
-                "• Przeciągnij - obróć glob",
-                "• Kółko - przybliż/oddal",
-                "• Podwójne kliknięcie - reset",
+            'Instructions': [
+                "Mouse controls:",
+                "• Drag - rotate the globe",
+                "• Scroll wheel - zoom in/out",
+                "• Double click - reset",
                 "",
-                "⌨️ Klawisze:",
-                "• M - menu główne",
-                "• L - zmień warstwę",
-                "• ESC - wyjście",
-                "• R - reset widoku",
+                "Keys:",
+                "• M - main menu",
+                "• L - change layer",
+                "• ESC - exit",
+                "• R - reset view",
                 "",
-                "📋 Pasek menu:",
-                "• Widok - zmień tryb wyświetlania",
-                "• Animacja - włącz animacje",
-                "• Statystyki - informacje o programie",
-                "• Efekty - efekty wizualne",
-                "• Atmosfera - symulacja atmosfery",
-                "• Screenshot - zrób zdjęcie",
-                "• Dźwięk - włącz/wyłącz dźwięk",
-                "• Ustawienia - konfiguracja",
-                "• Pomoc - instrukcje",
-                "• Wyjście - zamknij program"
+                "Top bar:",
+                "• View - change display mode",
+                "• Animation - toggle animations",
+                "• Stats - program information",
+                "• Effects - visual effects",
+                "• Atmosphere - atmosphere simulation",
+                "• Screenshot - take a picture",
+                "• Sound - toggle sound",
+                "• Settings - configuration",
+                "• Help - instructions",
+                "• Exit - close the program"
             ],
-            '⚙️ Ustawienia': [
-                "📊 Aktualne ustawienia:",
-                f"• Rozdzielczość: {self.display[0]}x{self.display[1]}",
-                f"• Warstwa: {self.current_texture}",
-                f"• Tryb widoku: {self.view_mode.value}",
-                f"• Auto-rotacja: {'Włączona' if self.auto_rotate else 'Wyłączona'}",
-                f"• Animacje: {'Włączone' if self.animation_enabled else 'Wyłączone'}",
-                f"• Efekty: {'Włączone' if self.effects_enabled else 'Wyłączone'}",
-                f"• Dźwięk: {'Włączony' if self.sound_enabled else 'Wyłączony'}",
+            'Settings': [
+                "Current settings:",
+                f"• Resolution: {self.display[0]}x{self.display[1]}",
+                f"• Layer: {self.current_texture}",
+                f"• View mode: {self.view_mode.value}",
+                f"• Auto-rotation: {'On' if self.auto_rotate else 'Off'}",
+                f"• Animations: {'On' if self.animation_enabled else 'Off'}",
+                f"• Effects: {'On' if self.effects_enabled else 'Off'}",
+                f"• Sound: {'On' if self.sound_enabled else 'Off'}",
                 "",
-                "🔧 Dostępne opcje:",
-                "• Zmień rozdzielczość",
-                "• Dostosuj czułość",
-                "• Włącz/wyłącz funkcje",
-                "• Zapisz ustawienia"
+                "Available options:",
+                "• Change resolution",
+                "• Adjust sensitivity",
+                "• Toggle features",
+                "• Save settings"
             ]
         }
 
         self.create_menu_surface()
 
     def setup_textures(self):
-        """Konfiguracja tekstur"""
+        """Texture setup"""
         self.load_all_textures()
 
     def setup_earth_list(self, radius: float = 2.0, segments: int = 32):
-        """Gera a esfera uma única vez e a guarda em uma display list."""
+        """Generates the sphere once and keeps it in a display list."""
         lat = np.pi * (-0.5 + np.arange(segments + 1) / segments)
         lon = 2 * np.pi * np.arange(segments + 1) / segments
         lat_g, lon_g = np.meshgrid(lat, lon, indexing='ij')
@@ -500,7 +548,7 @@ class EnhancedEarthSimulator:
         glEndList()
 
     def setup_ui_texture(self):
-        """Textura RGBA onde a interface pygame é desenhada."""
+        """RGBA texture the pygame UI is drawn onto."""
         w, h = self.display
         self.ui_surface = pygame.Surface((w, h), pygame.SRCALPHA)
         self.ui_tex = glGenTextures(1)
@@ -512,7 +560,7 @@ class EnhancedEarthSimulator:
         self.ui_dirty = True
 
     def setup_new_features(self):
-        """Konfiguracja nowych funkcji"""
+        """New features setup"""
         self.animation_type = AnimationType.ROTATION
         self.animation_speed = 1.0
         self.animation_time = 0
@@ -533,7 +581,7 @@ class EnhancedEarthSimulator:
         self.clouds_enabled = False
 
     def load_saved_config(self):
-        """Wczytuje zapisaną konfigurację"""
+        """Loads the saved configuration"""
         config = self.data_manager.load_config()
 
         if 'last_position' in config:
@@ -565,46 +613,53 @@ class EnhancedEarthSimulator:
         self.ui_dirty = True
 
     def update_perspective(self):
-        """Aktualizuje perspektywę OpenGL"""
+        """Updates the OpenGL perspective"""
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         gluPerspective(self.fov, self.aspect, self.near, self.far)
         glMatrixMode(GL_MODELVIEW)
 
     def apply_camera(self):
-        """Aplica a câmera diretamente (sem glGetFloatv)."""
+        """Applies the camera directly (no glGetFloatv)."""
         glLoadIdentity()
         glTranslatef(0.0, 0.0, self.distance)
         glRotatef(self.rotation_x, 1, 0, 0)
         glRotatef(self.rotation_y, 0, 1, 0)
 
     def load_all_textures(self):
-        """Ładuje wszystkie tekstury"""
+        """Loads all textures"""
         for name, file in self.texture_files.items():
             try:
                 self.textures[name] = self.load_texture(file)
-                logger.info(f"Tekstura {name} załadowana pomyślnie")
+                logger.info(f"Texture {name} loaded successfully")
             except Exception as e:
-                logger.error(f"Błąd ładowania tekstury {file}: {e}")
+                logger.error(f"Error loading texture {file}: {e}")
 
     def load_texture(self, filename: str):
-        """Ładuje pojedynczą teksturę (RGB, reduzida para 2048x1024)"""
+        """Loads the texture keeping the original pixels (no smoothing)."""
         try:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             image_path = os.path.join(script_dir, filename)
 
             if not os.path.exists(image_path):
-                raise FileNotFoundError(f"Plik tekstury nie istnieje: {image_path}")
+                raise FileNotFoundError(f"Texture file does not exist: {image_path}")
 
             image = Image.open(image_path).convert('RGB')
-            image.thumbnail((2048, 1024))
+
+            # Only downscale if the image exceeds the GPU limit
+            max_size = int(glGetIntegerv(GL_MAX_TEXTURE_SIZE))
+            if image.width > max_size or image.height > max_size:
+                image.thumbnail((max_size, max_size))
+                logger.info(f"{filename} resized to fit the GPU limit ({max_size}px)")
+
             image_data = image.tobytes("raw", "RGB", 0, -1)
 
             texture_id = glGenTextures(1)
             glBindTexture(GL_TEXTURE_2D, texture_id)
 
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            # NEAREST keeps pixels sharp; switch to GL_LINEAR for smoothing
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
 
@@ -614,35 +669,14 @@ class EnhancedEarthSimulator:
             return texture_id
 
         except Exception as e:
-            logger.error(f"Błąd ładowania tekstury {filename}: {e}")
+            logger.error(f"Error loading texture {filename}: {e}")
             raise
 
-    def draw_header(self, surface):
-        """Rysuje nagłówek z informacjami o programie"""
-        header_rect = pygame.Rect(0, 0, self.display[0], 70)
-        pygame.draw.rect(surface, self.colors.MENU_HEADER, header_rect)
 
-        pygame.draw.line(surface, self.colors.BUTTON_BORDER,
-                         (0, 70), (self.display[0], 70), 3)
 
-        title_text = self.title_font.render("🌟 Earth Simulator Enhanced v2.0",
-                                            True, self.colors.TEXT_ACCENT)
-        title_rect = title_text.get_rect(midleft=(20, 35))
-        surface.blit(title_text, title_rect)
-
-        author_text = self.text_font.render("👨‍💻 Autor: Adrian Lesniak",
-                                            True, self.colors.TEXT_ACCENT)
-        author_rect = author_text.get_rect(midright=(self.display[0] - 20, 35))
-        surface.blit(author_text, author_rect)
-
-        for i in range(5):
-            star_x = 400 + i * 80
-            star_text = self.small_font.render("⭐", True, self.colors.TEXT_ACCENT)
-            star_rect = star_text.get_rect(center=(star_x, 35))
-            surface.blit(star_text, star_rect)
 
     def draw_earth(self):
-        """Desenha o globo usando a display list pré-compilada"""
+        """Draws the globe using the precompiled display list"""
         glEnable(GL_TEXTURE_2D)
         tex = self.textures.get(self.current_texture)
         if tex:
@@ -651,7 +685,7 @@ class EnhancedEarthSimulator:
         glDisable(GL_TEXTURE_2D)
 
     def setup_2d_mode(self):
-        """Przełącza na tryb 2D dla interfejsu"""
+        """Switches to 2D mode for the UI"""
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
@@ -665,7 +699,7 @@ class EnhancedEarthSimulator:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
     def setup_3d_mode(self):
-        """Przełącza z powrotem na tryb 3D"""
+        """Switches back to 3D mode"""
         glDisable(GL_BLEND)
         glMatrixMode(GL_PROJECTION)
         glPopMatrix()
@@ -673,13 +707,13 @@ class EnhancedEarthSimulator:
         glPopMatrix()
 
     def create_menu_surface(self):
-        """Tworzy powierzchnię menu"""
+        """Creates the menu surface"""
         self.menu_surface = pygame.Surface((self.menu_width, self.menu_height),
                                            pygame.SRCALPHA)
         self.update_menu_surface()
 
     def update_menu_surface(self):
-        """Aktualizuje powierzchnię menu"""
+        """Updates the menu surface"""
         self.menu_surface.fill(self.colors.MENU_BG)
 
         header_rect = pygame.Rect(0, 0, self.menu_width, 60)
@@ -688,12 +722,12 @@ class EnhancedEarthSimulator:
         pygame.draw.rect(self.menu_surface, self.colors.BUTTON_BORDER,
                          (0, 0, self.menu_width, self.menu_height), 3)
 
-        title_text = self.menu_font.render("📋 Menu Główne", True, self.colors.TEXT_ACCENT)
+        title_text = self.menu_font.render("Main Menu", True, self.colors.TEXT_ACCENT)
         title_rect = title_text.get_rect(center=(self.menu_width // 2, 30))
         self.menu_surface.blit(title_text, title_rect)
 
         if self.current_section:
-            back_btn = EnhancedButton(20, 80, 360, 50, "⬅️ Powrót")
+            back_btn = EnhancedButton(20, 80, 360, 50, "Back")
             back_btn.draw(self.menu_surface, self.menu_font, self.colors)
 
             y = 150
@@ -709,13 +743,13 @@ class EnhancedEarthSimulator:
         self.ui_dirty = True
 
     def draw_menu(self, surface):
-        """Desenha o menu deslizante na superfície da UI"""
+        """Draws the sliding menu onto the UI surface"""
         target = self.display[0] - self.menu_width
         self.menu_position += (target - self.menu_position) * 0.3
         surface.blit(self.menu_surface, (int(self.menu_position), self.menu_y))
 
     def draw_stats(self, surface):
-        """Rysuje statystyki"""
+        """Draws the stats"""
         self.frame_count += 1
         current_time = time.time()
         if current_time - self.start_time >= 1.0:
@@ -725,15 +759,15 @@ class EnhancedEarthSimulator:
 
         stats_text = [
             f"FPS: {self.fps_counter}",
-            f"Tryb: {self.view_mode.value}",
-            f"Animacja: {'ON' if self.animation_enabled else 'OFF'}",
-            f"Efekty: {'ON' if self.effects_enabled else 'OFF'}",
-            f"Atmosfera: {'ON' if self.atmosphere_enabled else 'OFF'}",
-            f"Pozycja: X={self.rotation_x:.1f}° Y={self.rotation_y:.1f}°",
+            f"Mode: {self.view_mode.value}",
+            f"Animation: {'ON' if self.animation_enabled else 'OFF'}",
+            f"Effects: {'ON' if self.effects_enabled else 'OFF'}",
+            f"Atmosphere: {'ON' if self.atmosphere_enabled else 'OFF'}",
+            f"Position: X={self.rotation_x:.1f}° Y={self.rotation_y:.1f}°",
             f"Zoom: {abs(self.distance):.1f}"
         ]
 
-        y_offset = 50
+        y_offset = 100
         for i, text in enumerate(stats_text):
             text_surface = self.small_font.render(text, True, self.colors.TEXT_ACCENT)
             text_rect = text_surface.get_rect()
@@ -744,11 +778,13 @@ class EnhancedEarthSimulator:
             surface.blit(text_surface, text_rect)
 
     def render_ui(self):
-        """Desenha toda a interface numa Surface e envia para a textura (só quando muda)."""
+        """Draws the whole UI onto one Surface and uploads it as a texture (only when it changes)."""
         s = self.ui_surface
         s.fill((0, 0, 0, 0))
-        self.draw_header(s)
-        self.top_menu.draw(s, self.colors)
+        mouse = pygame.mouse.get_pos()
+        self.top_menu.draw(s, self.colors, mouse)
+        self.menu_btn.hovered = self.menu_btn.rect.collidepoint(mouse)
+        self.layer_btn.hovered = self.layer_btn.rect.collidepoint(mouse)
         self.menu_btn.draw(s, self.menu_font, self.colors)
         self.layer_btn.draw(s, self.menu_font, self.colors)
         if self.show_menu:
@@ -762,8 +798,9 @@ class EnhancedEarthSimulator:
                         GL_RGBA, GL_UNSIGNED_BYTE, data)
         self.ui_dirty = False
 
+
     def draw_ui_overlay(self):
-        """Desenha a textura da UI como um quad 2D sobre a cena."""
+        """Draws the UI texture as a 2D quad over the scene."""
         w, h = self.display
         self.setup_2d_mode()
         glDisable(GL_DEPTH_TEST)
@@ -781,7 +818,7 @@ class EnhancedEarthSimulator:
         self.setup_3d_mode()
 
     def draw(self):
-        """Renderização por frame: câmera, globo e, se necessário, UI."""
+        """Per-frame rendering: camera, globe and UI when needed."""
         if self.ui_dirty:
             self.render_ui()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -792,7 +829,7 @@ class EnhancedEarthSimulator:
         pygame.display.flip()
 
     def show_message(self, title: str, message: str):
-        """Pokazuje komunikat użytkownikowi"""
+        """Shows a message to the user"""
         self.current_section = None
         self.update_menu_surface()
         self.ui_dirty = True
@@ -811,7 +848,7 @@ class EnhancedEarthSimulator:
             pygame.time.wait(16)
 
     def handle_menu(self, event) -> bool:
-        """Obsługuje zdarzenia menu"""
+        """Handles menu events"""
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             menu_x = int(self.menu_position)
@@ -828,7 +865,7 @@ class EnhancedEarthSimulator:
 
             if self.show_menu:
                 if self.current_section:
-                    back_btn = EnhancedButton(20, 80, 360, 50, "⬅️ Powrót")
+                    back_btn = EnhancedButton(20, 80, 360, 50, "Back")
                     back_pos = (mouse_pos[0] - menu_x, mouse_pos[1] - self.menu_y)
                     if back_btn.rect.collidepoint(back_pos):
                         self.current_section = None
@@ -844,7 +881,7 @@ class EnhancedEarthSimulator:
         return False
 
     def handle_menu_action(self, button_index: int):
-        """Obsługuje akcje menu"""
+        """Handles menu actions"""
         actions = [
             self.show_about,
             self.show_instructions,
@@ -859,38 +896,38 @@ class EnhancedEarthSimulator:
             actions[button_index]()
 
     def cycle_texture(self):
-        """Zmienia teksturę Ziemi"""
+        """Changes the Earth texture"""
         textures = list(self.textures.keys())
         if textures:
             current_idx = textures.index(self.current_texture)
             next_idx = (current_idx + 1) % len(textures)
             self.current_texture = textures[next_idx]
 
-            self.menu_sections['⚙️ Ustawienia'][2] = f"• Warstwa: {self.current_texture}"
+            self.menu_sections['Settings'][2] = f"• Layer: {self.current_texture}"
             self.update_menu_surface()
 
-            logger.info(f"Zmieniono teksturę na: {self.current_texture}")
+            logger.info(f"Texture changed to: {self.current_texture}")
 
     def show_about(self):
-        """Pokazuje informacje o programie"""
-        self.current_section = 'ℹ️ O Programie'
+        """Shows program information"""
+        self.current_section = 'About'
         self.update_menu_surface()
-        self.show_message("ℹ️ O Programie", "Naciśnij dowolny klawisz, aby wrócić do menu")
+        self.show_message("About", "Press any key to return to the menu")
 
     def show_instructions(self):
-        """Pokazuje instrukcje"""
-        self.current_section = '🎮 Instrukcje'
+        """Shows instructions"""
+        self.current_section = 'Instructions'
         self.update_menu_surface()
-        self.show_message("🎮 Instrukcje", "Naciśnij dowolny klawisz, aby wrócić do menu")
+        self.show_message("Instructions", "Press any key to return to the menu")
 
     def show_settings(self):
-        """Pokazuje ustawienia"""
-        self.current_section = '⚙️ Ustawienia'
+        """Shows settings"""
+        self.current_section = 'Settings'
         self.update_menu_surface()
-        self.show_message("⚙️ Ustawienia", "Naciśnij dowolny klawisz, aby wrócić do menu")
+        self.show_message("Settings", "Press any key to return to the menu")
 
     def save_state(self):
-        """Zapisuje obecny stan"""
+        """Saves the current state"""
         config = {
             "last_position": {
                 "x": self.rotation_x,
@@ -908,12 +945,12 @@ class EnhancedEarthSimulator:
         }
 
         if self.data_manager.save_config(config):
-            self.show_message("💾 Zapisano", "Stan został zapisany pomyślnie!")
+            self.show_message("Saved", "State saved successfully!")
         else:
-            self.show_message("❌ Błąd", "Nie udało się zapisać stanu!")
+            self.show_message("Error", "Failed to save state!")
 
     def load_state(self):
-        """Wczytuje zapisany stan"""
+        """Loads the saved state"""
         config = self.data_manager.load_config()
 
         if 'last_position' in config:
@@ -921,26 +958,26 @@ class EnhancedEarthSimulator:
             self.rotation_x = pos.get('x', 0)
             self.rotation_y = pos.get('y', 180)
             self.distance = pos.get('distance', -5)
-            self.show_message("📂 Wczytano", "Stan został wczytany pomyślnie!")
+            self.show_message("Loaded", "State loaded successfully!")
         else:
-            self.show_message("❌ Błąd", "Brak zapisanego stanu!")
+            self.show_message("Error", "No saved state!")
 
     def reset_view(self):
-        """Resetuje widok do pozycji domyślnej"""
+        """Resets the view to the default position"""
         self.rotation_x = 0
         self.rotation_y = 180
         self.distance = -5
         self.auto_rotate = True
-        self.show_message("🔄 Reset", "Widok został zresetowany!")
+        self.show_message("Reset", "View has been reset!")
 
     def quit_program(self):
-        """Zamyka program"""
+        """Closes the program"""
         self.save_state()
         pygame.quit()
         sys.exit(0)
 
     def handle_top_menu_click(self, action: str):
-        """Obsługuje kliknięcia w pasek menu u góry"""
+        """Handles clicks on the top bar"""
         if action == "view_mode":
             self.toggle_view_mode()
         elif action == "animation":
@@ -963,7 +1000,7 @@ class EnhancedEarthSimulator:
             self.exit_program()
 
     def toggle_view_mode(self):
-        """Zmienia tryb widoku (Normal/Wireframe/Points/Night)"""
+        """Changes the view mode (Normal/Wireframe/Points/Night)"""
         modes = [ViewMode.NORMAL, ViewMode.WIREFRAME, ViewMode.POINTS, ViewMode.NIGHT]
         current_index = modes.index(self.view_mode)
         next_index = (current_index + 1) % len(modes)
@@ -976,111 +1013,111 @@ class EnhancedEarthSimulator:
         else:
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 
-        self.show_message("🌍 Tryb Widoku", f"Zmieniono na: {self.view_mode.value}")
-        logger.info(f"Zmieniono tryb widoku na: {self.view_mode.value}")
+        self.show_message("View Mode", f"Changed to: {self.view_mode.value}")
+        logger.info(f"View mode changed to: {self.view_mode.value}")
 
     def toggle_animation(self):
-        """Włącza/wyłącza animacje"""
+        """Toggles animations"""
         self.animation_enabled = not self.animation_enabled
 
         if self.animation_enabled:
             self.animation_time = 0
-            self.show_message("🎬 Animacja", "Animacje włączone!")
+            self.show_message("Animation", "Animations enabled!")
         else:
-            self.show_message("🎬 Animacja", "Animacje wyłączone!")
+            self.show_message("Animation", "Animations disabled!")
 
-        logger.info(f"Animacje: {'włączone' if self.animation_enabled else 'wyłączone'}")
+        logger.info(f"Animations: {'enabled' if self.animation_enabled else 'disabled'}")
 
     def toggle_stats(self):
-        """Włącza/wyłącza wyświetlanie statystyk"""
+        """Toggles the stats display"""
         self.stats_enabled = not self.stats_enabled
 
         if self.stats_enabled:
-            self.show_message("📊 Statystyki", "Statystyki włączone!")
+            self.show_message("Stats", "Stats enabled!")
         else:
-            self.show_message("📊 Statystyki", "Statystyki wyłączone!")
+            self.show_message("Stats", "Stats disabled!")
 
-        logger.info(f"Statystyki: {'włączone' if self.stats_enabled else 'wyłączone'}")
+        logger.info(f"Stats: {'enabled' if self.stats_enabled else 'disabled'}")
 
     def toggle_effects(self):
-        """Włącza/wyłącza efekty wizualne"""
+        """Toggles visual effects"""
         self.effects_enabled = not self.effects_enabled
 
         if self.effects_enabled:
             glEnable(GL_BLEND)
             glEnable(GL_DEPTH_TEST)
-            self.show_message("🎨 Efekty", "Efekty wizualne włączone!")
+            self.show_message("Effects", "Visual effects enabled!")
         else:
             glDisable(GL_BLEND)
-            self.show_message("🎨 Efekty", "Efekty wizualne wyłączone!")
+            self.show_message("Effects", "Visual effects disabled!")
 
-        logger.info(f"Efekty: {'włączone' if self.effects_enabled else 'wyłączone'}")
+        logger.info(f"Effects: {'enabled' if self.effects_enabled else 'disabled'}")
 
     def toggle_atmosphere(self):
-        """Włącza/wyłącza symulację atmosfery"""
+        """Toggles atmosphere simulation"""
         self.atmosphere_enabled = not self.atmosphere_enabled
 
         if self.atmosphere_enabled:
             self.clouds_enabled = True
-            self.show_message("🌙 Atmosfera", "Symulacja atmosfery włączona!")
+            self.show_message("Atmosphere", "Atmosphere simulation enabled!")
         else:
             self.clouds_enabled = False
-            self.show_message("🌙 Atmosfera", "Symulacja atmosfery wyłączona!")
+            self.show_message("Atmosphere", "Atmosphere simulation disabled!")
 
-        logger.info(f"Atmosfera: {'włączona' if self.atmosphere_enabled else 'wyłączona'}")
+        logger.info(f"Atmosphere: {'enabled' if self.atmosphere_enabled else 'disabled'}")
 
     def take_screenshot(self):
-        """Robi zrzut ekranu"""
+        """Takes a screenshot"""
         try:
             self.screenshot_counter += 1
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{timestamp}_{self.screenshot_counter}.png"
 
-            # Lê o framebuffer da OpenGL (a tela não é uma Surface do pygame)
+            # Reads the OpenGL framebuffer (the screen is not a pygame Surface)
             width, height = self.display
             glPixelStorei(GL_PACK_ALIGNMENT, 1)
             pixels = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
             img = Image.frombytes("RGB", (width, height), pixels).transpose(Image.FLIP_TOP_BOTTOM)
             img.save(filename)
 
-            self.show_message("📸 Screenshot", f"Zapisano jako: {filename}")
-            logger.info(f"Zrobiono screenshot: {filename}")
+            self.show_message("Screenshot", f"Saved as: {filename}")
+            logger.info(f"Screenshot taken: {filename}")
 
         except Exception as e:
-            self.show_message("❌ Błąd", f"Nie udało się zrobić screenshot: {e}")
-            logger.error(f"Błąd screenshot: {e}")
+            self.show_message("Error", f"Failed to take screenshot: {e}")
+            logger.error(f"Screenshot error: {e}")
 
     def toggle_sound(self):
-        """Włącza/wyłącza dźwięk"""
+        """Toggles sound"""
         self.sound_enabled = not self.sound_enabled
 
         if self.sound_enabled:
             pygame.mixer.unpause()
-            self.show_message("🎵 Dźwięk", "Dźwięk włączony!")
+            self.show_message("Sound", "Sound enabled!")
         else:
             pygame.mixer.pause()
-            self.show_message("🎵 Dźwięk", "Dźwięk wyłączony!")
+            self.show_message("Sound", "Sound disabled!")
 
-        logger.info(f"Dźwięk: {'włączony' if self.sound_enabled else 'wyłączony'}")
+        logger.info(f"Sound: {'enabled' if self.sound_enabled else 'disabled'}")
 
     def show_settings_menu(self):
-        """Pokazuje ustawienia"""
-        self.current_section = '⚙️ Ustawienia'
+        """Shows settings"""
+        self.current_section = 'Settings'
         self.update_menu_surface()
-        self.show_message("⚙️ Ustawienia", "Naciśnij dowolny klawisz, aby wrócić do menu")
+        self.show_message("Settings", "Press any key to return to the menu")
 
     def show_help_menu(self):
-        """Pokazuje pomoc"""
-        self.show_message("❓ Pomoc", "Naciśnij dowolny klawisz, aby wrócić do menu")
+        """Shows help"""
+        self.show_message("Help", "Press any key to return to the menu")
 
     def exit_program(self):
-        """Zamyka program"""
+        """Closes the program"""
         self.save_state()
         pygame.quit()
         sys.exit(0)
 
     def update_animation(self):
-        """Aktualizuje animacje"""
+        """Updates animations"""
         if self.animation_enabled:
             self.animation_time += 0.016
 
@@ -1101,7 +1138,7 @@ class EnhancedEarthSimulator:
             self.ui_dirty = True
 
     def handle_mouse(self, event):
-        """Obsługuje zdarzenia myszy"""
+        """Handles mouse events"""
         if event.type == pygame.MOUSEBUTTONDOWN:
             current_time = pygame.time.get_ticks()
 
@@ -1125,7 +1162,7 @@ class EnhancedEarthSimulator:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     self.zoom_at_cursor(mouse_x, mouse_y, zoom_factor)
                 except Exception as e:
-                    logger.error(f"Błąd obsługi zoom: {e}")
+                    logger.error(f"Zoom handling error: {e}")
 
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1:
@@ -1149,7 +1186,7 @@ class EnhancedEarthSimulator:
             self.last_pos = (x, y)
 
     def zoom_at_cursor(self, x: int, y: int, zoom_factor: int):
-        """Przybliża/oddala widok w punkcie kursora"""
+        """Zooms the view at the cursor"""
         try:
             zoom_amount = zoom_factor * self.zoom_sensitivity
             new_distance = self.distance + zoom_amount
@@ -1159,10 +1196,10 @@ class EnhancedEarthSimulator:
                 self.ui_dirty = True
 
         except Exception as e:
-            logger.error(f"Błąd zoom: {e}")
+            logger.error(f"Zoom error: {e}")
 
     def update_rotation(self):
-        """Aktualizuje rotację"""
+        """Updates rotation"""
         moving = False
         if self.last_pos is not None:
             self.auto_rotate = False
@@ -1185,17 +1222,17 @@ class EnhancedEarthSimulator:
             self.ui_dirty = True
 
     def get_zoom_factor(self) -> float:
-        """Oblicza współczynnik prędkości rotacji na podstawie zoom"""
+        """Computes the rotation speed factor from the zoom level"""
         zoom_range = self.max_zoom - self.min_zoom
         current_zoom = self.distance - self.min_zoom
         zoom_factor = current_zoom / zoom_range
         return max(0.05, 0.2 * zoom_factor)
 
     def run(self):
-        """Główna pętla programu"""
+        """Main program loop"""
         try:
             clock = pygame.time.Clock()
-            logger.info("Rozpoczęto symulację")
+            logger.info("Simulation started")
 
             while True:
                 events = pygame.event.get()
@@ -1244,31 +1281,31 @@ class EnhancedEarthSimulator:
                 clock.tick(60)
 
         except Exception as e:
-            logger.error(f"Błąd krytyczny: {e}")
+            logger.error(f"Critical error: {e}")
             pygame.quit()
             sys.exit(1)
 
 
 def check_dependencies():
-    """Sprawdza wymagane zależności"""
+    """Checks the required dependencies"""
     required_modules = ['pygame', 'OpenGL', 'numpy', 'PIL']
 
     for module in required_modules:
         try:
             __import__(module)
         except ImportError as e:
-            print(f"❌ Błąd: Brak modułu {module}")
-            print(f"Szczegóły: {e}")
-            print("🔧 Zainstaluj zależności: pip install pygame PyOpenGL numpy Pillow")
+            print(f"Error: Missing module {module}")
+            print(f"Details: {e}")
+            print("Install dependencies: pip install pygame PyOpenGL numpy Pillow")
             return False
 
-    print("✅ Wszystkie dependências estão disponíveis")
+    print("All dependencies are available")
     return True
 
 
 def check_texture_files():
-    """Sprawdza pliki tekstur"""
-    required_files = ['earth_texture.jpg', 'earth_political.jpg', 'earth_detailed.jpg']
+    """Checks the texture files"""
+    required_files = ['earth_texture.png', 'earth_political.png', 'earth_detailed.jpg']
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     missing_files = []
@@ -1278,18 +1315,18 @@ def check_texture_files():
             missing_files.append(file)
 
     if missing_files:
-        print(f"❌ Brakujące pliki tekstur: {', '.join(missing_files)}")
-        print("📁 Upewnij się, że pliki tekstur są w katalogu programu")
+        print(f"Missing texture files: {', '.join(missing_files)}")
+        print("Make sure the texture files are in the program folder")
         return False
 
-    print("✅ Wszystkie pliki tekstur są dostępne")
+    print("All texture files are available")
     return True
 
 
 def main():
-    """Główna funkcja programu"""
-    print("🌟 Earth Simulator Enhanced v2.0")
-    print("👨‍💻 Autor: Adrian Lesniak")
+    """Main program function"""
+    print("Earth Simulator Enhanced v2.0")
+    print("Author: Adrian Lesniak")
     print("=" * 50)
 
     if not check_dependencies():
@@ -1303,8 +1340,8 @@ def main():
         simulator.run()
 
     except Exception as e:
-        logger.error(f"Błąd fatalny: {e}")
-        print(f"❌ Błąd: {e}")
+        logger.error(f"Fatal error: {e}")
+        print(f"Error: {e}")
         sys.exit(1)
 
 
