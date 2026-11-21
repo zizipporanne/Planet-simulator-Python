@@ -73,7 +73,7 @@ python earth_simulator_enhanced.py
 ### Problem: Brak Plików Tekstur
 
 **Rozwiązanie:** Upewnij się, że masz pliki:
-- `earth_texture.jpg`
+- `earth_texture.png`
 - `earth_political.jpg` 
 - `earth_detailed.jpg`
 

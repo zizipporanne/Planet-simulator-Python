@@ -53,7 +53,7 @@ pip3 install -r requirements.txt
 ### 4. Sprawdzenie Plików Tekstur
 
 Upewnij się, że w katalogu programu znajdują się pliki:
-- `earth_texture.jpg`
+- `earth_texture.png`
 - `earth_political.jpg`
 - `earth_detailed.jpg`
 

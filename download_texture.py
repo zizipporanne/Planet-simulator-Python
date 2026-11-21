@@ -3,7 +3,7 @@ import os
 
 def download_earth_texture():
     url = "https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg"
-    output_file = "earth_texture.jpg"
+    output_file = "earth_texture.png"
     
     if os.path.exists(output_file):
         print(f"Texture file already exists at: {output_file}")
