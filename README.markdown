@@ -39,7 +39,7 @@ _A 3D Earth visualization tool built with Python, PyOpenGL, and Pygame, featurin
     *   Displays a textured sphere representing the Earth using OpenGL primitives and texturing.
 *   텍스처 **Multiple Texture Layers**:
     *   Allows users to switch between different visual representations of the Earth:
-        *   **Default**: Standard terrain texture (`earth_texture.jpg`).
+        *   **Default**: Standard terrain texture (`earth_texture.png`).
         *   **Political**: A map showing country borders (`earth_political.jpg`, optional).
         *   **Detailed**: A high-definition terrain texture (`earth_detailed.jpg`, optional).
 *   🖱️ **Interactive Controls**:
@@ -78,7 +78,7 @@ _Screenshots of the PyGlobe 3D application: the main view of the rotating Earth 
 
 ## 🖼️ Texture File Requirements
 
-*   **`earth_texture.jpg` (Required)**: The default terrain texture for the globe. The application will check for this file at startup and exit if it's missing.
+*   **`earth_texture.png` (Required)**: The default terrain texture for the globe. The application will check for this file at startup and exit if it's missing.
 *   **`earth_political.jpg` (Optional)**: A texture file for the political map layer. If present, it enables this view.
 *   **`earth_detailed.jpg` (Optional)**: A texture file for a high-definition or alternative detailed terrain layer. If present, it enables this view.
 
@@ -107,7 +107,7 @@ _Screenshots of the PyGlobe 3D application: the main view of the rotating Earth 
     ```
 
 4.  **Prepare Texture Files**:
-    *   Ensure `earth_texture.jpg` is present in the root project directory (alongside `main.py`).
+    *   Ensure `earth_texture.png` is present in the root project directory (alongside `main.py`).
     *   Optionally, add `earth_political.jpg` and `earth_detailed.jpg` to the same directory if you want to use these texture layers.
 
 5.  **Run the Application**:
@@ -134,7 +134,7 @@ _Screenshots of the PyGlobe 3D application: the main view of the rotating Earth 
 ## 🗂️ File Structure (Expected)
 
 *   `main.py`: The main Python script containing all the application logic, including Pygame setup, OpenGL rendering calls, event handling, texture management, camera controls, and menu system.
-*   `earth_texture.jpg`: The default Earth texture image file (required).
+*   `earth_texture.png`: The default Earth texture image file (required).
 *   `earth_political.jpg`: (Optional) Texture file for the political map view.
 *   `earth_detailed.jpg`: (Optional) Texture file for a detailed terrain view.
 *   `README.md`: This documentation file.
@@ -143,7 +143,7 @@ _Screenshots of the PyGlobe 3D application: the main view of the rotating Earth 
 
 ## 📝 Technical Notes
 
-*   **Texture File Check**: The application performs a crucial check for `earth_texture.jpg` at startup. If this file is not found in the same directory as `main.py`, the program will exit.
+*   **Texture File Check**: The application performs a crucial check for `earth_texture.png` at startup. If this file is not found in the same directory as `main.py`, the program will exit.
 *   **Optional Textures**: The availability of "Political" and "Detailed" texture layers depends on the presence of `earth_political.jpg` and `earth_detailed.jpg` respectively.
 *   **OpenGL & Pygame Integration**: Pygame is used for creating the window, handling user input events (mouse, keyboard), and managing the main loop. PyOpenGL is used for all 3D rendering commands (creating the sphere, applying textures, setting up the camera/view).
 *   **Settings Menu**: The current "Settings" menu is described as displaying static information rather than allowing interactive changes. This could be an area for future expansion.

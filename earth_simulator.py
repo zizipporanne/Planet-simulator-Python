@@ -21,10 +21,10 @@ def check_dependencies():
 
 def check_texture_file():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    texture_path = os.path.join(script_dir, 'earth_texture.jpg')
+    texture_path = os.path.join(script_dir, 'earth_texture.png')
     if not os.path.exists(texture_path):
         print(f"Error: Texture file not found at {texture_path}")
-        print("Please add 'earth_texture.jpg' to the script directory")
+        print("Please add 'earth_texture.png' to the script directory")
         return False
     return True
 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
             # Add texture handling
             self.texture_files = {
-                'Default': 'earth_texture.jpg',
+                'Default': 'earth_texture.png',
                 'Political': 'earth_political.jpg',
                 'Detailed': 'earth_detailed.jpg'
             }

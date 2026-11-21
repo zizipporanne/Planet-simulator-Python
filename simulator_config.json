@@ -1,15 +1,15 @@
 {
   "last_position": {
-    "x": 10.707692307692307,
-    "y": 201.04615384615357,
+    "x": 0,
+    "y": 223.69999999999752,
     "distance": -5
   },
-  "texture": "Default",
-  "auto_rotate": false,
+  "texture": "Political",
+  "auto_rotate": true,
   "mouse_sensitivity": 0.2,
   "view_mode": "Normal",
   "animation_enabled": false,
   "effects_enabled": true,
-  "sound_enabled": true,
-  "atmosphere_enabled": false
+  "sound_enabled": false,
+  "atmosphere_enabled": true
 }
